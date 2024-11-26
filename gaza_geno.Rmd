@@ -5,13 +5,14 @@ date: "2024-11-26"
 output: html_document
 ---
 
-# data
+
+# Data
 ```{r}
-gaza_geno <- read.csv("data/killed-in-gaza.csv")
+gaza_geno <- read.csv("D:/R_Gaza/gaza/data/killed-in-gaza.csv")
 class(gaza_geno)
 ```
 
-# libraries
+# Libraries
 ```{r}
 
 library(tidyverse)
@@ -96,7 +97,7 @@ st_write(palestine_cities_sf, "D:/R_Gaza/pal_map/data/palestinian_cities",
          driver = "ESRI Shapefile", delete_layer = TRUE)  # save the sf data frame as shapefile
 
 
-unzip(zipfile =  "data/localities_palestine_sf.zip" , exdir ="data/localities_palestine")
+unzip(zipfile =  "D:/R_Gaza/gaza/data/localities_palestine_sf.zip" , exdir ="data/localities_palestine")
 localities_palestine_sf <- st_read("data/localities_palestine")
 localities_palestine_sf
 class(localities_palestine_sf)
