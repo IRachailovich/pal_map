@@ -1,0 +1,153 @@
+---
+title: "Gaza Genocide"
+author: "Itamar Johan Rachailovich"
+date: "2024-11-26"
+output: html_document
+---
+
+# data
+```{r}
+gaza_geno <- read.csv("data/killed-in-gaza.csv")
+class(gaza_geno)
+```
+
+# libraries
+```{r}
+
+library(tidyverse)
+library(ggplot2)
+library(leaflet)
+```
+
+
+# First data exploration
+```{r}
+gaza_geno <- as_tibble(gaza_geno)
+class(gaza_geno)
+gaza_geno
+
+death_by_age <- 
+  gaza_geno %>% 
+  group_by(age = as.integer(age)) %>% 
+  summarise(death = n())
+
+peak_10_ages <- death_by_age %>% 
+  top_n(n = 10, death) %>% 
+  pull(age)
+
+age_quantiles <- quantile(gaza_geno$age)
+age_quantiles
+peak_10_ages
+
+```
+
+# Plots
+```{r}
+theme_set(theme_bw())
+
+gaza_geno %>% 
+  ggplot(aes(x = age))+
+  geom_histogram(fill = "#4D5052", colour = "black", bins = 20, binwidth = 2)+
+  scale_x_continuous(breaks = seq(0, 100, 20))+
+  labs(title = "Gaza genocide - Death by Age", x = "Age", y = "Frequency of Deaths", 
+       caption = "The frequency of murdered palestinians by age (murdered by the Israelis)")+
+  theme(plot.title = element_text(face = "bold"), 
+        plot.caption = element_text(face = "italic", colour = "#4D5052"), 
+        plot.caption.position = "plot")
+ggsave(filename = "geno_hist.pdf", path = "D:/R_Gaza/pal_map/images")
+
+death_by_age %>% 
+  ggplot(aes(x = age, y = death))+
+  geom_line()+
+  geom_segment(x = 14, xend= 14, y = 0, yend = 659, linetype = "dashed")+
+  geom_segment(x = 26, xend= 26, y = 0, yend = 652, linetype = "dashed")+
+  geom_segment(x = 39, xend= 39, y = 0, yend = 469, linetype = "dashed")+
+  scale_x_continuous(breaks = seq(0, 100, 20))+
+  labs(title = "Gaza genocide - Death by Age", x = "Age", y = "Number of Deaths", 
+       caption = "The number of murdered palestinians by age (murdered by the Israelis)")+
+  theme(plot.title = element_text(face = "bold"), 
+        plot.caption = element_text(face = "italic", colour = "#4D5052"), 
+        plot.caption.position = "plot")
+ggsave(filename = "geno_linechart.pdf", path = "D:/R_Gaza/pal_map/images")
+```
+
+# Maps 
+## Setting the data
+```{r}
+# Get palestinian cities, convert it to sf dataframe, assign projection to the coordinates and save it
+library(maps) # Get palestinian cities
+library(sf)   # convert it to sf dataframe, assign projection to the coordinates and save it
+
+data(world.cities)
+palestine_cities <- world.cities %>% filter(country.etc == "Palestine")
+class(palestine_cities)
+palestine_cities <- as_tibble(palestine_cities)
+write_excel_csv(palestine_cities, file = "D:/R_Gaza/pal_map/data/palestinians_cities.csv")
+
+names(palestine_cities)    #get the names for the coordinate variables
+palestine_cities_sf <- st_as_sf(palestine_cities, coords = c("lat", "long")) #convert to sf df tibble
+class(palestine_cities_sf) #check if class has changed to sf dataframe tibble
+st_crs(palestine_cities_sf) #check for geographic projections
+st_crs(palestine_cities_sf) <- 4326  #assign geographic projection (4326, i.e., longlat WGS84)
+st_crs(palestine_cities_sf) #check if the geographic projection was assigned
+st_crs(palestine_cities_sf)$proj4string
+palestine_cities_sf #check if "lat" and "long" variables were changed to "geometry" variable.
+st_write(palestine_cities_sf, "D:/R_Gaza/pal_map/data/palestinian_cities", 
+         driver = "ESRI Shapefile", delete_layer = TRUE)  # save the sf data frame as shapefile
+
+
+unzip(zipfile =  "data/localities_palestine_sf.zip" , exdir ="data/localities_palestine")
+localities_palestine_sf <- st_read("data/localities_palestine")
+localities_palestine_sf
+class(localities_palestine_sf)
+st_crs(localities_palestine_sf)$proj4string
+
+localities_palestine_WGS84 <- st_transform(localities_palestine_sf, crs = 4326)
+st_crs(localities_palestine_WGS84)$proj4string
+st_write(localities_palestine_WGS84, "D:/R_Gaza/pal_map/data/localities_palestine", 
+         driver = "ESRI Shapefile", delete_layer = TRUE)
+
+st_crs(localities_palestine_WGS84)$proj4string
+st_crs(palestine_cities_sf)$proj4string
+```
+
+## Creating maps
+```{r}
+ggplot(localities_palestine_WGS84)+
+  geom_sf(colour = "black")
+
+library(leaflet)
+library(leaflet.providers)
+library(htmlwidgets)
+
+col_fun <- colorFactor(c("#337bd7", "#c8143b"), domain = NULL)
+itamar <- st_point(c(34.82375, 31.89530))
+itamarpopup <- c("Where I.J.R was born")   
+pal_popup <- paste0("<strong>City Name:</strong>", palestine_cities$name)
+
+
+palestine_map <- leaflet(localities_palestine_WGS84) %>% 
+  addPolygons(stroke = TRUE, weight = 0.7, color = "black", 
+              fillColor = ~col_fun(REGIONCODE), 
+              group = "Regions", fillOpacity = 0.8) %>% 
+  addCircleMarkers(lng = 34.82375 , lat = 31.89530, group = "My House",
+                   popup = itamarpopup) %>% 
+  addCircleMarkers(data = palestine_cities, group = "Cities", popup = pal_popup, 
+                   radius = 0.01, color = "#2c120c") %>% 
+  addTiles(group = "OSM") %>% 
+  addProviderTiles(provider = "Stadia.OSMBright", group = "OSMBright") %>% 
+  addProviderTiles(provider = "Stadia", group = "Stadia") %>%
+  addProviderTiles(provider = "Stadia.Outdoors", group = "Outdoors") %>% 
+  addProviderTiles(provider = "Stadia.StamenTonerLite", group = "TonerLite") %>% 
+  addProviderTiles(provider = "CartoDB", group = "CartoDB") %>% 
+  addProviderTiles(provider = "CartoDB.Voyager", group = "CartoDB.Voyager") %>% 
+  addProviderTiles(provider = "Esri", group = "Esri") %>% 
+  addLayersControl(baseGroups = c("OSM", "OSMBright", "Stadia", "Outdoors", "TonerLite", 
+                                  "CartoDB", "CartoDB.Voyager", "Esri"), 
+                   overlayGroups = c("Regions", "Where I Live", "Cities"))
+palestine_map
+```
+
+
+
+
