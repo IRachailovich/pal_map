@@ -6,20 +6,24 @@ output: html_document
 ---
 
 
+# Libraries
+```{r setup, include=FALSE}
+library(tidyverse)
+library(kableExtra)
+library(gtsummary)
+library(ggplot2)
+library(maps) # Get palestinian cities
+library(sf)   # convert it to sf dataframe, assign projection to the coordinates and save it
+library(leaflet)
+library(leaflet.providers)
+library(htmlwidgets)
+```
+
 # Data
 ```{r}
 gaza_geno <- read.csv("D:/R_Gaza/gaza/data/killed-in-gaza.csv")
 class(gaza_geno)
 ```
-
-# Libraries
-```{r}
-
-library(tidyverse)
-library(ggplot2)
-library(leaflet)
-```
-
 
 # First data exploration
 ```{r}
@@ -30,16 +34,37 @@ gaza_geno
 death_by_age <- 
   gaza_geno %>% 
   group_by(age = as.integer(age)) %>% 
-  summarise(death = n())
+  summarise(Death = n())
 
 peak_10_ages <- death_by_age %>% 
-  top_n(n = 10, death) %>% 
+  top_n(n = 10, Death) %>% 
   pull(age)
 
 age_quantiles <- quantile(gaza_geno$age)
-age_quantiles
+age_quantiles <- as.matrix(age_quantiles)
+age_quantiles_rownames <- rownames(age_quantiles)
+age_quantiles <- as.tibble(cbind(age_quantiles, age_quantiles_rownames))
+colnames(age_quantiles)
+colnames(age_quantiles)<- c("Age", "Quantile")
+
+age_quantiles %>% kbl(caption = "Age quantiles of murdered palestinians") %>% kable_classic() %>% kable_styling(full_width = FALSE, )
 peak_10_ages
 
+death_by_sex_age <- 
+  gaza_geno %>% 
+  mutate(sex = factor(sex, levels = c("f", "m"), 
+                      labels = c("Female", "Male"))) %>% 
+  group_by(age, sex, .groups = TRUE) %>% 
+  summarise(Death = n())
+
+death_by_sex_age <- death_by_sex_age[-3]
+
+tbl_by_sex_age <- gaza_geno %>% 
+  select(sex, age) %>% 
+  mutate(sex = factor(sex, levels = c("f", "m"), labels = c("Female", "Male"))) %>% 
+  tbl_summary(label = list(sex = "Sex", age = "Age")) 
+
+tbl_by_sex_age
 ```
 
 # Plots
@@ -58,7 +83,7 @@ gaza_geno %>%
 ggsave(filename = "geno_hist.pdf", path = "D:/R_Gaza/pal_map/images")
 
 death_by_age %>% 
-  ggplot(aes(x = age, y = death))+
+  ggplot(aes(x = age, y = Death))+
   geom_line()+
   geom_segment(x = 14, xend= 14, y = 0, yend = 659, linetype = "dashed")+
   geom_segment(x = 26, xend= 26, y = 0, yend = 652, linetype = "dashed")+
@@ -74,10 +99,8 @@ ggsave(filename = "geno_linechart.pdf", path = "D:/R_Gaza/pal_map/images")
 
 # Maps 
 ## Setting the data
-```{r}
+```{r, warning=FALSE, message=FALSE}
 # Get palestinian cities, convert it to sf dataframe, assign projection to the coordinates and save it
-library(maps) # Get palestinian cities
-library(sf)   # convert it to sf dataframe, assign projection to the coordinates and save it
 
 data(world.cities)
 palestine_cities <- world.cities %>% filter(country.etc == "Palestine")
@@ -117,9 +140,6 @@ st_crs(palestine_cities_sf)$proj4string
 ggplot(localities_palestine_WGS84)+
   geom_sf(colour = "black")
 
-library(leaflet)
-library(leaflet.providers)
-library(htmlwidgets)
 
 col_fun <- colorFactor(c("#337bd7", "#c8143b"), domain = NULL)
 itamar <- st_point(c(34.82375, 31.89530))
